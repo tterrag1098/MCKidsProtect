@@ -1,0 +1,16 @@
+[
+{
+  "modid": "mckidsprotect",
+  "name": "Garrett is bad",
+  "description": "Garrett is bad",
+  "version": "1.0.0",
+  "mcversion": "1.12.2",
+  "url": "",
+  "updateUrl": "",
+  "authorList": ["Bad Garrett"],
+  "credits": "Garrett Being bad",
+  "logoFile": "",
+  "screenshots": [],
+  "dependencies": []
+}
+]
