@@ -89,7 +89,10 @@ public class MCKidsProtect {
             event.setCanceled(true);
             Entity e = event.getEntity();
             if (e instanceof EntityPlayerMP) {
-                ((EntityPlayerMP)e).sendContainerToPlayer(((EntityPlayerMP) e).inventoryContainer);
+                EntityPlayerMP player = (EntityPlayerMP) e;
+                if (player.inventoryContainer != null) {
+                    player.sendContainerToPlayer(player.inventoryContainer);
+                }
             }
         }
     }

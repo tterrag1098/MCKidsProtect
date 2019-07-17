@@ -24,6 +24,7 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.common.config.Configuration;
 import net.minecraftforge.common.config.Property;
+import net.minecraftforge.common.util.FakePlayer;
 
 public class ProtectionConfig {
     
@@ -130,6 +131,7 @@ public class ProtectionConfig {
     
     private boolean applyInCreative = false;
     private boolean preventInteract = true;
+    private boolean allowFakePlayers = true;
     
     private final Property enabled;
     
@@ -145,7 +147,7 @@ public class ProtectionConfig {
         
         this.applyInCreative = this.config.get(Configuration.CATEGORY_GENERAL, "applyInCreative", applyInCreative, "Should the whitelist apply to creative players?").getBoolean();
         this.preventInteract = this.config.get(Configuration.CATEGORY_GENERAL, "preventInteract", preventInteract, "Does the whitelist also prevent interacting with blocks?").getBoolean();
-
+        this.allowFakePlayers = this.config.get(Configuration.CATEGORY_GENERAL, "allowFakePlayers", allowFakePlayers, "Should fake players bypass protection checks").getBoolean();
         this.config.save();
     }
     
@@ -158,6 +160,9 @@ public class ProtectionConfig {
 
     public boolean isWhitelisted(EntityPlayer player, IBlockState state) {
         if (player.capabilities.isCreativeMode && !this.applyInCreative) {
+            return true;
+        }
+        if (player instanceof FakePlayer && allowFakePlayers) {
             return true;
         }
         return !enabled.getBoolean() || whitelist.stream().anyMatch(p -> p.test(state));
