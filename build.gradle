@@ -1,0 +1,53 @@
+buildscript {
+    repositories {
+        jcenter()
+        mavenCentral()
+        maven { url = "http://files.minecraftforge.net/maven" }
+        maven { url = "https://oss.sonatype.org/content/repositories/snapshots/" }
+    }
+    dependencies { 
+        classpath 'net.minecraftforge.gradle:ForgeGradle:2.3-SNAPSHOT' 
+    }
+}
+
+apply plugin: 'net.minecraftforge.gradle.forge'
+
+ext.buildnumber = 0
+if (System.getenv('BUILD_NUMBER') != null)
+    project.buildnumber = System.getenv('BUILD_NUMBER')
+else
+    logger.lifecycle "No build number detected, setting to 0"
+
+group = "com.minecampkids.protect"
+archivesBaseName = "MCKidsProtect"
+version = "${minecraft_version}-${mod_version}.${buildnumber}"
+
+sourceCompatibility = targetCompatibility = "1.8" // Need this here so eclipse task generates correctly.
+compileJava {
+    sourceCompatibility = targetCompatibility = "1.8"
+}
+
+boolean dev = System.getenv("RELEASE") == null || System.getenv("RELEASE").equalsIgnoreCase("false")
+
+minecraft {
+    mappings = "snapshot_20180612"
+    version = "${minecraft_version}-${forge_version}"
+    runDir = 'run'
+}
+
+processResources {
+    inputs.property "version", project.version
+    inputs.property "mcversion", project.minecraft.version
+
+    from(sourceSets.main.resources.srcDirs) {
+        include '**/*.info'
+        include '**/*.properties'
+
+        expand 'version': project.version, 'mcversion': project.minecraft.version
+    }
+
+    from(sourceSets.main.resources.srcDirs) {
+        exclude '**/*.info'
+        exclude '**/*.properties'
+    }
+}
