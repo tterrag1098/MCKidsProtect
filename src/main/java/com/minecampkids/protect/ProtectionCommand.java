@@ -18,6 +18,7 @@ import net.minecraft.server.dedicated.DedicatedServer;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraft.util.text.TextFormatting;
+import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.server.FMLServerHandler;
 
 public class ProtectionCommand extends CommandBase {
@@ -135,7 +136,7 @@ public class ProtectionCommand extends CommandBase {
         }
         
         String reply = subcommand.execute(args.length > 1 ? args[1] : null);
-        if (subcommand != EnumSubCommand.HELP && subcommand != EnumSubCommand.LIST && FMLServerHandler.instance().getServer().isDedicatedServer()) {
+        if (subcommand != EnumSubCommand.HELP && subcommand != EnumSubCommand.LIST && FMLCommonHandler.instance().getSide().isServer()) {
             // FIXME !!!
             MCKidsProtect.network.sendTo(new MessageWhitelist(Op.values()[subcommand.ordinal() - 2], args.length > 1 ? args[1] : null), getCommandSenderAsPlayer(sender));
         }

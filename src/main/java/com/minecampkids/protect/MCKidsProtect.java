@@ -12,6 +12,7 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.event.world.BlockEvent;
+import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.Mod.EventHandler;
 import net.minecraftforge.fml.common.Mod.Instance;
@@ -109,7 +110,7 @@ public class MCKidsProtect {
 
     @SubscribeEvent
     public void onPlayerJoin(PlayerLoggedInEvent event) {
-        if (FMLServerHandler.instance().getServer().isDedicatedServer()) { 
+        if (FMLCommonHandler.instance().getSide().isServer()) { 
             network.sendTo(new MessageInitialWhitelist(getConfig().getWhitelist()), (EntityPlayerMP) event.player);
         }
     }
