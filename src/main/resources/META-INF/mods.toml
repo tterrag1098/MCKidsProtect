@@ -1,0 +1,9 @@
+modLoader="javafml" #mandatory
+loaderVersion="[25,)" #mandatory (24 is current forge version)
+issueTrackerURL="https://github.com/tterrag1098/MCKidsProtect/issues"
+
+[[mods]]
+modId="mckidsprotect"
+version="1.0"
+displayName="MCKids Protect"
+authors="tterrag"

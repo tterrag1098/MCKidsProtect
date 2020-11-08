@@ -1,6 +1,5 @@
 package com.minecampkids.protect;
 
-import java.io.File;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -15,20 +14,27 @@ import java.util.stream.Collectors;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 
 import it.unimi.dsi.fastutil.objects.Object2BooleanLinkedOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2BooleanMap;
-import net.minecraft.block.properties.IProperty;
-import net.minecraft.block.state.IBlockState;
-import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.block.BlockState;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.state.IProperty;
 import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.common.config.Configuration;
-import net.minecraftforge.common.config.Property;
+import net.minecraftforge.common.ForgeConfigSpec;
+import net.minecraftforge.common.ForgeConfigSpec.BooleanValue;
+import net.minecraftforge.common.ForgeConfigSpec.ConfigValue;
 import net.minecraftforge.common.util.FakePlayer;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod.EventBusSubscriber;
+import net.minecraftforge.fml.common.Mod.EventBusSubscriber.Bus;
+import net.minecraftforge.fml.config.ModConfig;
 
+@EventBusSubscriber(modid = MCKidsProtect.MODID, bus = Bus.MOD)
 public class ProtectionConfig {
     
-    private static class BlockPredicate implements Predicate<IBlockState> {
+    private static class BlockPredicate implements Predicate<BlockState> {
 
         private final String domain, path;
         
@@ -39,10 +45,10 @@ public class ProtectionConfig {
         }
         
         @Override
-        public boolean test(IBlockState t) {
+        public boolean test(BlockState t) {
             ResourceLocation name = t.getBlock().getRegistryName();
-            return (domain.equals("*") || domain.equals(name.getResourceDomain())) 
-                    && (path.equals("*") || path.contentEquals(name.getResourcePath()));
+            return (domain.equals("*") || domain.equals(name.getNamespace())) 
+                    && (path.equals("*") || path.contentEquals(name.getPath()));
         }
 
         @Override
@@ -71,7 +77,7 @@ public class ProtectionConfig {
     private static class StatePredicate extends BlockPredicate {
         
         private final Map<String, String> props;
-        private final Object2BooleanMap<IBlockState> cache = new Object2BooleanLinkedOpenHashMap<>();
+        private final Object2BooleanMap<BlockState> cache = new Object2BooleanLinkedOpenHashMap<>();
         
         public StatePredicate(String domain, String path, Map<String, String> props) {
             super(domain, path);
@@ -80,12 +86,12 @@ public class ProtectionConfig {
         
         @SuppressWarnings({ "unchecked", "rawtypes" })
         @Override
-        public boolean test(IBlockState t) {
+        public boolean test(BlockState t) {
             if (!super.test(t)) {
                 return false;
             }
             return cache.computeIfAbsent(t, state -> 
-               state.getProperties().entrySet().stream()
+               state.getValues().entrySet().stream()
                     .map(e -> (Entry<IProperty, Comparable>) (Entry) e) // cast hack
                     .allMatch(e -> !props.containsKey(e.getKey().getName()) // ignore properties not in the map
                                  || props.get(e.getKey().getName()).equals(e.getKey().getName(e.getValue()))));
@@ -124,55 +130,71 @@ public class ProtectionConfig {
           + "(?<path>\\w+|\\*)" // Always match a path, or * for wildcard
           + "(?:\\[(?<props>(?:\\w+=\\w+,)*(?:\\w+=\\w+))\\])?"); // Optionally match property values
     
-    private final Configuration config;
+    private final ForgeConfigSpec spec;
     
-    private final Set<Predicate<IBlockState>> whitelist = new HashSet<>();
-    private final Property whitelistProp;
+    private final Set<Predicate<BlockState>> whitelist = new HashSet<>();
+    private final ConfigValue<List<? extends String>> whitelistProp;
     
-    private boolean applyInCreative = false;
-    private boolean preventInteract = true;
-    private boolean allowFakePlayers = true;
-    
-    private final Property enabled;
-    
+    private final BooleanValue enabled;
+
+    private final BooleanValue applyInCreative;
+    private final BooleanValue preventInteract;
+    private final BooleanValue allowFakePlayers;
+        
     private boolean savingEnabled = true;
 
-    public ProtectionConfig(File config) {
-        this.config = new Configuration(config);
+    public ProtectionConfig() {
+        ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
         
-        this.whitelistProp = this.config.get(Configuration.CATEGORY_GENERAL, "whitelist", new String[] {"computercraft:*"}, "");
-        readWhitelist();
+        this.whitelistProp = builder.defineList("whitelist", Lists.newArrayList("computercraft:*"), o -> {
+        	if (o instanceof String) {
+	        	try {
+	        		getPredicate((String) o);
+	        	} catch (Exception e) {
+	        		return false;
+	        	}
+	        	return true;
+        	}
+        	return false;
+        });
         
-        this.enabled = this.config.get(Configuration.CATEGORY_GENERAL, "whitelistEnabled", true);
+        this.enabled = builder.define("whitelistEnabled", true);
         
-        this.applyInCreative = this.config.get(Configuration.CATEGORY_GENERAL, "applyInCreative", applyInCreative, "Should the whitelist apply to creative players?").getBoolean();
-        this.preventInteract = this.config.get(Configuration.CATEGORY_GENERAL, "preventInteract", preventInteract, "Does the whitelist also prevent interacting with blocks?").getBoolean();
-        this.allowFakePlayers = this.config.get(Configuration.CATEGORY_GENERAL, "allowFakePlayers", allowFakePlayers, "Should fake players bypass protection checks").getBoolean();
-        this.config.save();
+        this.applyInCreative = builder.comment("Should the whitelist apply to creative players?").define("applyInCreative", false);
+        this.preventInteract = builder.comment("Does the whitelist also prevent interacting with blocks?").define("preventInteract", true);
+        this.allowFakePlayers = builder.comment("Should fake players bypass protection checks").define("allowFakePlayers", true);
+        
+        this.spec = builder.build();
+    }
+    
+    public ForgeConfigSpec getSpec() {
+    	return spec;
     }
     
     private void readWhitelist() {
-        String[] whitelistCfg = whitelistProp.getStringList();
-        for (String s : whitelistCfg) {
+    	boolean saving = this.savingEnabled;
+    	enableSaving(false);
+        for (String s : whitelistProp.get()) {
             addWhitelist(s);
         }
+        enableSaving(saving);
     }
 
-    public boolean isWhitelisted(EntityPlayer player, IBlockState state) {
-        if (player.capabilities.isCreativeMode && !this.applyInCreative) {
+    public boolean isWhitelisted(PlayerEntity player, BlockState state) {
+        if (player.abilities.isCreativeMode && !this.applyInCreative.get()) {
             return true;
         }
-        if (player instanceof FakePlayer && allowFakePlayers) {
+        if (player instanceof FakePlayer && allowFakePlayers.get()) {
             return true;
         }
-        return !enabled.getBoolean() || whitelist.stream().anyMatch(p -> p.test(state));
+        return !enabled.get() || whitelist.stream().anyMatch(p -> p.test(state));
     }
     
     public boolean preventInteract() {
-        return preventInteract;
+        return preventInteract.get();
     }
     
-    private Predicate<IBlockState> getPredicate(String s) {
+    private Predicate<BlockState> getPredicate(String s) {
         Matcher m = STATE.matcher(s);
         if (!m.matches()) {
             throw new IllegalArgumentException("Invalid whitelist string: " + s);
@@ -199,8 +221,8 @@ public class ProtectionConfig {
     
     private void save() {
         if (savingEnabled) {
-            this.whitelistProp.set(getWhitelist().toArray(new String[0]));
-            this.config.save();
+            this.whitelistProp.set(getWhitelist());
+            this.spec.save();
         }
     }
 
@@ -222,7 +244,7 @@ public class ProtectionConfig {
     }
 
     private boolean setWhitelistEnabled(boolean enabled) {
-        boolean prev = this.enabled.getBoolean();
+        boolean prev = this.enabled.get();
         if (prev == enabled) {
             return false;
         }
@@ -246,5 +268,15 @@ public class ProtectionConfig {
     public void restore() {
         readWhitelist();
         enableSaving(true);
+    }
+
+    @SubscribeEvent
+    public static void onConfigLoad(ModConfig.Loading event) {
+    	MCKidsProtect.getInstance().getConfig().readWhitelist();
+    }
+
+    @SubscribeEvent
+    public static void onConfigReload(ModConfig.Reloading event) {
+    	MCKidsProtect.getInstance().getConfig().readWhitelist();
     }
 }
